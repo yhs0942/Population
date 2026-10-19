@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 import requests
 import json
+from shapely.geometry import shape, Polygon, MultiPolygon
+from shapely.ops import unary_union
 
 
 # ==================================================
@@ -666,7 +668,7 @@ fig = px.choropleth(
 
 fig.update_traces(
     marker_line_color="#FFFFFF",
-    marker_line_width=0.45,
+    marker_line_width=0.7,
     hovertemplate=(
         "<b>%{customdata[0]}</b><br>"
         "고령화율: %{customdata[1]:.2f}%"
@@ -674,7 +676,7 @@ fig.update_traces(
     ),
     # 결측값은 회색으로 표시합니다.
     marker={
-        "line": {"color": "white", "width": 0.45}
+        "line": {"color": "#FFFFFF", "width": 0.7}
     },
 )
 
@@ -689,7 +691,45 @@ fig.update_geos(
     bgcolor="#FFF9F1",
 )
 
+# 시도별 시군구 경계를 합쳐 광역자치단체(도·광역시) 외곽선을 굵게 덧그립니다.
+# 기존 시군구 색상과 hover 정보는 유지하고, 경계선만 별도 레이어로 추가합니다.
+province_geometries = {}
+for feature in geojson.get("features", []):
+    props = feature.get("properties", {})
+    province_name = str(props.get("시도", "")).strip()
+    geometry = feature.get("geometry")
+    if province_name and geometry:
+        try:
+            province_geometries.setdefault(province_name, []).append(shape(geometry))
+        except Exception:
+            pass
+
+for province_name, geometries in province_geometries.items():
+    try:
+        merged = unary_union(geometries)
+        polygons = list(merged.geoms) if isinstance(merged, MultiPolygon) else [merged]
+        for polygon in polygons:
+            if not isinstance(polygon, Polygon):
+                continue
+            coords = list(polygon.exterior.coords)
+            fig.add_trace(
+                go.Scattergeo(
+                    lon=[point[0] for point in coords],
+                    lat=[point[1] for point in coords],
+                    mode="lines",
+                    line={"color": "#563C32", "width": 2.0},
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name=f"{province_name} 경계",
+                )
+            )
+    except Exception:
+        # 경계 병합에 실패하더라도 기존 단계구분도는 계속 표시합니다.
+        continue
+
 fig.update_layout(
+    height=900,
+    autosize=True,
     paper_bgcolor="#FFF9F1",
     plot_bgcolor="#FFF9F1",
     margin={"l": 0, "r": 0, "t": 20, "b": 0},
