@@ -442,7 +442,7 @@ POPULATION_URL = (
 )
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/"
-    "first2022-cyber/contents/main/sigungu_kr.geojson.txt"
+    "yhs0942/Population/main/sigungu_kr.geojson.txt"
 )
 
 
